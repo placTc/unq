@@ -1,8 +1,8 @@
-from asyncio import Future
+from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 from threading import Thread, Lock
 from time import sleep
-from typing import Any, Callable, Final
+from typing import Any, Awaitable, Callable, Final
 
 from unq.models import RepetitionInterval
 from unq.models import _FunctionCall
@@ -20,17 +20,23 @@ class RateLimiter:
         self._stop_lock = Lock()
         self._stopped: bool = True
         
-        self._result_dict: dict[str, Future] = dict()
+        self._executor = ThreadPoolExecutor
+        
+        self._result_dict: dict[str, Awaitable] = dict()
         
         self._internal_queue: Queue[_FunctionCall] = Queue()
         
     def _set_repetition_interval(self, repetition_interval: RepetitionInterval) -> None:
         timeframe = repetition_interval.timeframe
         base_interval = 1.0
-        if timeframe == 'minute' or timeframe == 'm':
+        if timeframe == 'second' or timeframe == 's':
+            base_interval *= 1
+        elif timeframe == 'minute' or timeframe == 'm':
             base_interval *= 60
         elif timeframe == 'hour' or timeframe == 'h':
             base_interval *= 3600
+        else:
+            raise ValueError("Invalid timeframe set.")
             
         base_interval /= repetition_interval.times
         base_interval *= repetition_interval.every
