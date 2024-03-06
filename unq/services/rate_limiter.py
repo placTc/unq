@@ -146,14 +146,15 @@ class RateLimiter:
         """
         timeframe = repetition_interval.timeframe
         base_interval = 1.0
-        if timeframe == "second" or timeframe == "s":
-            base_interval *= 1
-        elif timeframe == "minute" or timeframe == "m":
-            base_interval *= 60
-        elif timeframe == "hour" or timeframe == "h":
-            base_interval *= 3600
-        else:
-            raise ValueError("Invalid timeframe set.")
+        match timeframe:
+            case "second", "s":
+                base_interval *= 1
+            case "minute", "m":
+                base_interval *= 60
+            case "hour", "h":
+                base_interval *= 3600
+            case _:
+                raise ValueError("Invalid timeframe set.")
 
         base_interval /= repetition_interval.times
         base_interval *= repetition_interval.every
