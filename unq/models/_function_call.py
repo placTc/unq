@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 
-@dataclass(frozen=False)
+@dataclass(frozen=True)
 class _FutureFunctionCall:
     future: Future[Any]
     function: Callable
