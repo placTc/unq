@@ -15,14 +15,17 @@ class RateLimiter:
     """
     `RateLimiter` class, the core service of Unq.
     Allows calling functions at a set rate, unloading functions at the order they were pushed in.
-
+    
+    It is possible to receive the results of the functions when running in an `async` environment -
+    `RateLimiter.push` returns futures, which can be awaited if that's desired.
+    
     Args:
         repetition_interval (RepetitionInterval | float): The interval between each repetition.
         Can either be set through the library `RepetitionInterval` datatype or with a simple
         `float` (or castable) representing the amount of seconds to sleep between each repetition.
 
-        Raises:
-            TypeError: Raised then the value is of an unsupported type
+    Raises:
+        TypeError: Raised then the value is of an unsupported type
     """
 
     def __init__(self, repetition_interval: _RepetitionIntervalType) -> None:
@@ -56,8 +59,18 @@ class RateLimiter:
         """Start the rate limiter execution."""
         with self._stop_lock:
             self._stopped = False
-        self._internal_runner_thread: Thread = Thread(None, self._run, args=(self,))
+        self._internal_runner_thread = Thread(None, self._run, args=(self,))
         self._internal_runner_thread.start()
+        
+    def _run(self) -> None:
+        """Internal run function.
+
+        Contains the main loop of the class. Executed in a background thread by `RateLimiter.start()`.
+        """
+        while not self.stopped:
+            function_call = self._call_queue.get()
+            self._executor.submit(_execute_future, function_call)
+            sleep(self._repetition_interval)
 
     def stop(self) -> None:
         """Stop the rate limiter execution."""
@@ -66,19 +79,9 @@ class RateLimiter:
 
     @property
     def stopped(self) -> bool:
-        """Check if the rate limiter is stopped"""
+        """Whether the rate limiter is stopped."""
         with self._stop_lock:
             return self._stopped
-
-    def _run(self) -> None:
-        """Internal run function.
-
-        Contains the main loop of the class. Ran in the background by `RateLimiter.run()`
-        """
-        while not self.stopped:
-            function_call = self._call_queue.get()
-            self._executor.submit(_execute_future, function_call)
-            sleep(self._repetition_interval)
 
     @property
     def repetition_interval(self) -> float:
