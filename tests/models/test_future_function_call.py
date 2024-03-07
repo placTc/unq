@@ -1,21 +1,26 @@
-from asyncio import get_event_loop
+from asyncio import Future, get_event_loop
 from dataclasses import FrozenInstanceError
+from functools import cache
 from unq.models import _FutureFunctionCall
 import pytest
 
 @pytest.fixture
-def default_ffc():
+def default_future():
+    return get_event_loop().create_future()
+
+@pytest.fixture
+def default_ffc(default_future):
     # Arrange
-    future = get_event_loop().create_future()
+    future = default_future
     function = print
     args = ("Hello, World!",)
     kwargs = {"test": "arg"}
     return _FutureFunctionCall(future=future, function=function, args=args, kwargs=kwargs)
 
 
-def test_constructor_properly_creates_object(default_ffc):
+def test_constructor_properly_creates_object(default_ffc, default_future):
     # Arrange
-    future = get_event_loop().create_future()
+    future = default_future
     function = print
     args = ("Hello, World!",)
     kwargs = {"test": "arg"}

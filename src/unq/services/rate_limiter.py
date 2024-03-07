@@ -2,7 +2,7 @@ from asyncio import Future, get_event_loop, wrap_future
 from concurrent.futures import Future as ConcurrentFuture
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
-from threading import Lock, Thread
+from threading import Condition, Lock, Thread
 from time import sleep
 from typing import Any, Callable
 
@@ -17,9 +17,10 @@ class RateLimiter:
     Allows calling functions at a set rate, unloading functions at the order they were pushed in.
 
     Args:
-        repetition_interval (RepetitionInterval | float): The interval between each repetition.
+        repetition_interval (_RepetitionIntervalType): The interval between each repetition.
         Can either be set through the library `RepetitionInterval` datatype or with a simple
-        `float` (or castable) representing the amount of seconds to sleep between each repetition.
+        `float` or a type that is explicitly castable to `float` (has a `__float__` method)
+        representing the amount of seconds to sleep between each repetition.
 
         Raises:
             TypeError: Raised then the value is of an unsupported type
@@ -33,6 +34,8 @@ class RateLimiter:
         self._stopped: bool = True
         self._executor = ThreadPoolExecutor()
 
+        self._queue_condition = Condition(Lock())
+        
         self._call_queue: Queue[_FutureFunctionCall] = Queue()
         self._event_loop = get_event_loop()
 
@@ -50,19 +53,26 @@ class RateLimiter:
         future: Future[Any] = wrap_future(ConcurrentFuture(), loop=self._event_loop)
         function_call = _FutureFunctionCall(future, callable, args, kwargs)
         self._call_queue.put(function_call)
+        self._notify_queue_condition()
         return future
 
     def start(self) -> None:
         """Start the rate limiter execution."""
-        with self._stop_lock:
-            self._stopped = False
-        self._internal_runner_thread: Thread = Thread(None, self._run, args=(self,))
-        self._internal_runner_thread.start()
+        if self.stopped:
+            with self._stop_lock:
+                self._internal_runner_thread: Thread = Thread(None, self._run)
+                self._internal_runner_thread.start()
+                self._stopped = False
 
     def stop(self) -> None:
-        """Stop the rate limiter execution."""
-        with self._stop_lock:
-            self._stopped = True
+        """Stop the rate limiter execution. Execution might not stop instantly as the background thread might take time to exit.
+        """
+        if not self.stopped:
+            with self._stop_lock:
+                self._stopped = True
+                self._notify_queue_condition()
+            self._internal_runner_thread.join()
+        
 
     @property
     def stopped(self) -> bool:
@@ -76,13 +86,23 @@ class RateLimiter:
         Contains the main loop of the class. Ran in the background by `RateLimiter.run()`
         """
         while not self.stopped:
+            with self._queue_condition:
+                while self._call_queue.empty() and not self.stopped:
+                    self._queue_condition.wait()
+                if self.stopped:
+                    break
             function_call = self._call_queue.get()
             self._executor.submit(_execute_future, function_call)
             sleep(self._repetition_interval)
+                
+    def _notify_queue_condition(self):
+        """Notify the queue lock condition while acquiring its lock."""
+        with self._queue_condition:
+            self._queue_condition.notify_all()
 
     @property
     def repetition_interval(self) -> float:
-        """Get the repetition interval in seconds
+        """Repetition interval in seconds
 
         Returns:
             float: The number of seconds of the repetition interval
@@ -113,7 +133,8 @@ class RateLimiter:
         Args:
             repetition_interval (_RepetitionIntervalType): The interval between each repetition.
             Can either be set through the library `RepetitionInterval` datatype or with a simple
-            `float` (or castable) representing the amount of seconds to sleep between each repetition.
+            `float` or a type that is explicitly castable to `float` (has a `__float__` method)
+            representing the amount of seconds to sleep between each repetition.
 
         Raises:
             TypeError: Raised then the value is of an unsupported type
@@ -147,11 +168,11 @@ class RateLimiter:
         timeframe = repetition_interval.timeframe
         base_interval = 1.0
         match timeframe:
-            case "second", "s":
+            case "seconds" | "s":
                 base_interval *= 1
-            case "minute", "m":
+            case "minutes" | "m":
                 base_interval *= 60
-            case "hour", "h":
+            case "hours" | "h":
                 base_interval *= 3600
             case _:
                 raise ValueError("Invalid timeframe set.")
