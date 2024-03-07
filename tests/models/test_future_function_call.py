@@ -13,26 +13,21 @@ def default_ffc():
     return _FutureFunctionCall(future=future, function=function, args=args, kwargs=kwargs)
 
 
-def test_constructor_properly_creates_object():
+def test_constructor_properly_creates_object(default_ffc):
     # Arrange
     future = get_event_loop().create_future()
     function = print
     args = ("Hello, World!",)
     kwargs = {"test": "arg"}
     
-    # Act
-    ffc = _FutureFunctionCall(future=future, function=function, args=args, kwargs=kwargs)
-    
     # Assert
-    assert ffc.future == future, "Future did not match"
-    assert ffc.function == function, "Function did not match"
-    assert ffc.args == args, "Args did not match"
-    assert ffc.kwargs == kwargs, "Kwargs did not match"
+    assert default_ffc.future == future, "Future did not match"
+    assert default_ffc.function == function, "Function did not match"
+    assert default_ffc.args == args, "Args did not match"
+    assert default_ffc.kwargs == kwargs, "Kwargs did not match"
     
     
-def test_object_is_immutable(default_ffc):
-    # Arrange
-    assign_to_ffc = lambda: setattr(default_ffc, "kwargs", {"test": "arg2"})
-    
+def test_object_is_immutable_dataclass(default_ffc):
     # Act, Assert
-    assert pytest.raises(FrozenInstanceError, assign_to_ffc)
+    with pytest.raises(FrozenInstanceError):
+        default_ffc.kwargs = {"arg": "value"}
