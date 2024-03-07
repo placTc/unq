@@ -15,15 +15,18 @@ class RateLimiter:
     """
     `RateLimiter` class, the core service of Unq.
     Allows calling functions at a set rate, unloading functions at the order they were pushed in.
-
+    
+    It is possible to receive the results of the functions when running in an `async` environment -
+    `RateLimiter.push` returns futures, which can be awaited if that's desired.
+    
     Args:
         repetition_interval (_RepetitionIntervalType): The interval between each repetition.
         Can either be set through the library `RepetitionInterval` datatype or with a simple
         `float` or a type that is explicitly castable to `float` (has a `__float__` method)
         representing the amount of seconds to sleep between each repetition.
 
-        Raises:
-            TypeError: Raised then the value is of an unsupported type
+    Raises:
+        TypeError: Raised then the value is of an unsupported type
     """
 
     def __init__(self, repetition_interval: _RepetitionIntervalType) -> None:
@@ -76,7 +79,7 @@ class RateLimiter:
 
     @property
     def stopped(self) -> bool:
-        """Check if the rate limiter is stopped"""
+        """Whether the rate limiter is stopped."""
         with self._stop_lock:
             return self._stopped
 
