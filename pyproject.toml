@@ -26,6 +26,7 @@ classifiers = [
 
 [project.optional-dependencies]
 test = ["pytest"]
+lint = ["black", "pylint", "isort"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -35,3 +36,6 @@ disable = ["missing-module-docstring"]
 
 [tool.pylint."FORMAT"]
 max-line-length = 120
+
+[tool.black]
+line-length = 120
