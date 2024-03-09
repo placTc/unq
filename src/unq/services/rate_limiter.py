@@ -1,6 +1,7 @@
 from asyncio import Future, get_event_loop, wrap_future
 from concurrent.futures import Future as ConcurrentFuture
 from concurrent.futures import ThreadPoolExecutor
+from inspect import iscoroutinefunction
 from queue import Queue
 from threading import Condition, Lock, Thread
 from time import sleep
@@ -15,10 +16,10 @@ class RateLimiter:
     """
     `RateLimiter` class, the core service of Unq.
     Allows calling functions at a set rate, unloading functions at the order they were pushed in.
-    
+
     It is possible to receive the results of the functions when running in an `async` environment -
     `RateLimiter.push` returns futures, which can be awaited if that's desired.
-    
+
     Args:
         repetition_interval (_RepetitionIntervalType): The interval between each repetition.
         Can either be set through the library `RepetitionInterval` datatype or with a simple
@@ -37,13 +38,14 @@ class RateLimiter:
         self._stopped: bool = True
         self._executor = ThreadPoolExecutor()
 
+        self._queue_lock = Lock()
         self._queue_condition = Condition(Lock())
-        
+
         self._call_queue: Queue[_FutureFunctionCall] = Queue()
         self._event_loop = get_event_loop()
 
-    def push(self, callable: Callable, *args: Any, **kwargs: Any) -> Future[Any]:
-        """Push a function to execute into the internal queue.
+    def submit(self, callable: Callable, *args: Any, **kwargs: Any) -> Future[Any]:
+        """Submit a function to execute later.
 
         Args:
             callable (Callable): The function to execute.
@@ -53,10 +55,11 @@ class RateLimiter:
         Returns:
             Future: A future to the function call result, in case eventually receiving the result is desired.
         """
-        future: Future[Any] = wrap_future(ConcurrentFuture(), loop=self._event_loop)
+        future: Future[Any] = self._event_loop.create_future()
         function_call = _FutureFunctionCall(future, callable, args, kwargs)
-        self._call_queue.put(function_call)
-        self._notify_queue_condition()
+        with self._queue_lock:
+            self._call_queue.put(function_call)
+            self._notify_queue_condition()
         return future
 
     def start(self) -> None:
@@ -68,14 +71,12 @@ class RateLimiter:
                 self._stopped = False
 
     def stop(self) -> None:
-        """Stop the rate limiter execution. Execution might not stop instantly as the background thread might take time to exit.
-        """
+        """Stop the rate limiter execution. Execution might not stop instantly as the background thread might take time to exit."""
         if not self.stopped:
             with self._stop_lock:
                 self._stopped = True
                 self._notify_queue_condition()
             self._internal_runner_thread.join()
-        
 
     @property
     def stopped(self) -> bool:
@@ -90,18 +91,23 @@ class RateLimiter:
         """
         while not self.stopped:
             with self._queue_condition:
-                while self._call_queue.empty() and not self.stopped:
+                while self._queue_empty() and not self.stopped:
                     self._queue_condition.wait()
                 if self.stopped:
                     break
-            function_call = self._call_queue.get()
-            self._executor.submit(_execute_future, function_call)
+            with self._queue_lock:
+                function_call = self._call_queue.get()
+            self._executor.submit(self._execute_future, function_call)
             sleep(self._repetition_interval)
-                
+
     def _notify_queue_condition(self):
         """Notify the queue lock condition while acquiring its lock."""
         with self._queue_condition:
             self._queue_condition.notify_all()
+
+    def _queue_empty(self):
+        with self._queue_lock:
+            return self._call_queue.empty()
 
     @property
     def repetition_interval(self) -> float:
@@ -184,10 +190,19 @@ class RateLimiter:
         base_interval *= repetition_interval.every
         return base_interval
 
+    def _execute_future(self, function_call: _FutureFunctionCall):
+        call_soon_threadsafe = function_call.future.get_loop().call_soon_threadsafe
+        call_partial = lambda: function_call.function(
+            *function_call.args, **function_call.kwargs
+        )
+        try:
+            if iscoroutinefunction(function_call.function):
+                result = function_call.future.get_loop().run_until_complete(
+                    call_partial()
+                )
+            else:
+                result = call_partial()
 
-def _execute_future(function_call: _FutureFunctionCall):
-    try:
-        result = function_call.function(*function_call.args, **function_call.kwargs)
-        function_call.future.set_result(result)
-    except Exception as error:
-        function_call.future.set_exception(error)
+            call_soon_threadsafe(function_call.future.set_result, result)
+        except Exception as error:
+            call_soon_threadsafe(function_call.future.set_exception, error)
