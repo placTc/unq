@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from unittest.mock import Mock
 
 import pytest
@@ -126,3 +127,37 @@ async def test_function_executed_after_submit_in_async_context(
 
     # Assert
     assert mock_function.called
+
+
+async def test_functions_executed_at_correct_intervals(
+    default_async_rate_limiter: RateLimiter,
+):
+    # Arrange
+    MAX_DELAY_INACCURACY_MICROSECONDS = 2000
+    default_async_rate_limiter.start()
+
+    # Act
+    time_1: datetime = await default_async_rate_limiter.submit(datetime.now)
+    time_2: datetime = await default_async_rate_limiter.submit(datetime.now)
+    time_3: datetime = await default_async_rate_limiter.submit(datetime.now)
+
+    delay_1 = time_2 - time_1
+    delay_2 = time_3 - time_2
+
+    delay_delta_1 = delay_1 - delay_2
+    delay_delta_2 = delay_2 - delay_1
+
+    # Assert
+    assert (
+        delay_delta_1.microseconds < MAX_DELAY_INACCURACY_MICROSECONDS
+        or delay_delta_2.microseconds < MAX_DELAY_INACCURACY_MICROSECONDS
+    )
+
+
+async def test_functions_executed_at_correct_intervals_after_interval_changed(
+    default_async_rate_limiter: RateLimiter,
+):
+    # Act, Assert
+    await test_functions_executed_at_correct_intervals(default_async_rate_limiter)
+    default_async_rate_limiter.repetition_interval = 1
+    await test_functions_executed_at_correct_intervals(default_async_rate_limiter)
