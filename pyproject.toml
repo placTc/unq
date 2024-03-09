@@ -26,3 +26,12 @@ classifiers = [
 
 [project.optional-dependencies]
 test = ["pytest"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.pylint]
+disable = ["missing-module-docstring"]
+
+[tool.pylint."FORMAT"]
+max-line-length = 120

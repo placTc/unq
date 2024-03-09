@@ -14,6 +14,6 @@ class RepetitionInterval:
     The model is validated! If incorrect values are provided a ValueError will be raised.
     """
 
-    timeframe: Literal["second", "minute", "hour", "s", "m", "h"] = "second"
+    timeframe: Literal["seconds", "minutes", "hours", "s", "m", "h"] = "seconds"
     every: int = 1
     times: int = 1
