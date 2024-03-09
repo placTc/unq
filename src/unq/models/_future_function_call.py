@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 @dataclass(frozen=True)
 class _FutureFunctionCall:
-    future: Future[Any]
+    future: Future[Any] | None
     function: Callable
     args: tuple
     kwargs: dict[str, Any]
