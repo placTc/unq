@@ -97,7 +97,7 @@ class RateLimiter:
             with self._queue_lock:
                 function_call = self._call_queue.get()
             self._executor.submit(self._execute_future, function_call)
-            sleep(self._repetition_interval)
+            sleep(self.repetition_interval)
 
     def _notify_queue_condition(self):
         """Notify the queue lock condition while acquiring its lock."""
