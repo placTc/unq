@@ -8,9 +8,6 @@ description = "Simple rate limiter library using thread-safe queues."
 readme = "README.md"
 version = "1.0.0"
 requires-python = ">=3.11"
-dependencies = [
-
-]
 authors = [
     {name = "Egor Matuk", email = "gregory.matuk2004@gmail.com"}
 ]
@@ -26,3 +23,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License"
 ]
+
+[project.optional-dependencies]
+test = ["pytest"]
