@@ -30,20 +30,21 @@ class RateLimiter:
     """
 
     def __init__(self, repetition_interval: _RepetitionIntervalType) -> None:
-        self._typecheck_set_repetition_interval_type(repetition_interval)
-
-        self._stop_lock = Lock()
         self._rep_interval_lock = Lock()
+        self._typecheck_set_repetition_interval_type(repetition_interval)
+        
+        self._stop_lock = Lock()
         self._stopped: bool = True
-        self._executor = ThreadPoolExecutor()
 
         self._queue_lock = Lock()
         self._queue_condition = Condition(Lock())
-
         self._call_queue: Queue[_FutureFunctionCall] = Queue()
-        self._event_loop = get_event_loop()
 
-    def submit(self, callable: Callable, *args: Any, **kwargs: Any) -> Future[Any]:
+        self._event_loop = get_event_loop()
+        self._internal_runner_thread = Thread(None, self._run) # To be overwritten
+        self._executor = ThreadPoolExecutor()
+
+    def submit(self, function: Callable, *args: Any, **kwargs: Any) -> Future[Any]:
         """Submit a function to execute later.
 
         Args:
@@ -52,10 +53,11 @@ class RateLimiter:
             kwargs: Any keyword arguments to pass to the function.
 
         Returns:
-            Future: A future to the function call result, in case eventually receiving the result is desired.
+            Future: A future to the function call result, 
+            in case eventually receiving the result is desired.
         """
         future: Future[Any] = self._event_loop.create_future()
-        function_call = _FutureFunctionCall(future, callable, args, kwargs)
+        function_call = _FutureFunctionCall(future, function, args, kwargs)
         with self._queue_lock:
             self._call_queue.put(function_call)
             self._notify_queue_condition()
@@ -65,12 +67,12 @@ class RateLimiter:
         """Start the rate limiter execution."""
         if self.stopped:
             with self._stop_lock:
-                self._internal_runner_thread: Thread = Thread(None, self._run)
+                self._internal_runner_thread = Thread(None, self._run)
                 self._internal_runner_thread.start()
                 self._stopped = False
 
     def stop(self) -> None:
-        """Stop the rate limiter execution. Execution might not stop instantly as the background thread might take time to exit."""
+        """Stop the rate limiter execution. """
         if not self.stopped:
             with self._stop_lock:
                 self._stopped = True
@@ -191,7 +193,7 @@ class RateLimiter:
 
     def _execute_future(self, function_call: _FutureFunctionCall):
         call_soon_threadsafe = function_call.future.get_loop().call_soon_threadsafe
-        call_partial = lambda: function_call.function(
+        call_partial = lambda: function_call.function( # pylint: disable=unnecessary-lambda-assignment
             *function_call.args, **function_call.kwargs
         )
         try:
@@ -203,5 +205,5 @@ class RateLimiter:
                 result = call_partial()
 
             call_soon_threadsafe(function_call.future.set_result, result)
-        except Exception as error:
+        except Exception as error: # pylint: disable=broad-exception-caught
             call_soon_threadsafe(function_call.future.set_exception, error)
