@@ -188,3 +188,18 @@ async def test_submit_executes_async_functions(default_async_rate_limiter: RateL
     
     # Assert
     async_mock.assert_awaited_once()
+    
+
+# 15
+def test_context_managed_instance_starts(default_rate_limiter: RateLimiter):
+    # Arrange
+    mock_function = Mock(return_value=6)
+    
+    # Act
+    with default_rate_limiter as rl:
+        rl.submit(mock_function)
+
+    time.sleep(2) # No overshoots
+    
+    # Assert
+    mock_function.assert_called_once()

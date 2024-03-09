@@ -7,11 +7,13 @@ from time import sleep
 from typing import Any, Callable, Literal, overload
 
 from unq.models import RepetitionInterval, _FutureFunctionCall
+from unq.services._context_managed_rate_limiter import _ContextManagedRateLimiter
+from unq.services.abstract._abstract_rate_limiter import _AbstractRateLimiter
 
 _RepetitionIntervalType = RepetitionInterval | float
 
 
-class RateLimiter:
+class RateLimiter(_AbstractRateLimiter):
     """
     `RateLimiter` class, the core service of Unq.
     Allows calling functions at a set rate, unloading functions at the order they were pushed in.
@@ -49,19 +51,6 @@ class RateLimiter:
     @overload
     def submit(self, function: Callable, keep_result: Literal[False] = False, *args: Any, **kwargs: Any) -> None: ...
     def submit(self, function: Callable, keep_result: bool = False, *args: Any, **kwargs: Any) -> Future[Any] | None:
-        """Submit a function to execute later.
-
-        Args:
-            callable (Callable): The function to execute.
-            keep_results (bool): If this is set to `False`, no `Future` object will be created
-            and the result of the function execution will not be recorded.
-            It is advised to keep this setting `False` when running in a non-async context. Defaults to `False`.
-            args: Any non-keyword arguments to pass to the function.
-            kwargs: Any keyword arguments to pass to the function.
-
-        Returns:
-            Future | None: A future to the function call result or `None` if keep_result is `False`
-        """
         if keep_result:
             future: Future[Any] | None = self._event_loop.create_future()
         else:
@@ -74,7 +63,6 @@ class RateLimiter:
         return future
 
     def start(self) -> None:
-        """Start the rate limiter execution."""
         if self.stopped:
             with self._stop_lock:
                 self._internal_runner_thread = Thread(None, self._run)
@@ -82,7 +70,6 @@ class RateLimiter:
                 self._stopped = False
 
     def stop(self) -> None:
-        """Stop the rate limiter execution."""
         if not self.stopped:
             with self._stop_lock:
                 self._stopped = True
@@ -221,3 +208,13 @@ class RateLimiter:
         future = run_coroutine_threadsafe(coroutine_partial(), loop)
         loop.stop()
         return future.result()
+    
+    def __enter__(self) -> _ContextManagedRateLimiter:
+        if not self.stopped:
+            raise RuntimeError("Can't use a started RateLimiter as a context manager.")
+        
+        self.start()
+        return _ContextManagedRateLimiter(self)
+            
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        self.stop()
