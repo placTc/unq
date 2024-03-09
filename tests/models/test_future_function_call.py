@@ -1,12 +1,11 @@
-from asyncio import Future, get_event_loop
+from asyncio import new_event_loop
 from dataclasses import FrozenInstanceError
-from functools import cache
 from unq.models import _FutureFunctionCall
 import pytest
 
 @pytest.fixture
 def default_future():
-    return get_event_loop().create_future()
+    return new_event_loop().create_future()
 
 @pytest.fixture
 def default_ffc(default_future):
