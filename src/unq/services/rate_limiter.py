@@ -1,5 +1,4 @@
-from asyncio import Future, get_event_loop, wrap_future
-from concurrent.futures import Future as ConcurrentFuture
+from asyncio import Future, get_event_loop
 from concurrent.futures import ThreadPoolExecutor
 from inspect import iscoroutinefunction
 from queue import Queue
