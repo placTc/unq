@@ -10,7 +10,6 @@ from unq.models.repetition_interval import RepetitionInterval
 from .fixtures import default_async_rate_limiter, default_rate_limiter
 
 
-# 1
 def test_constructor_parses_repetition_interval():
     # Arrange
     rep_interval = RepetitionInterval(timeframe="hours", every=1, times=3)
@@ -25,7 +24,6 @@ def test_constructor_parses_repetition_interval():
     ), "Repetition interval was incorrectly calculated"
 
 
-# 2
 def test_constructor_accepts_float_as_repetition_interval():
     # Arrange
     rep_interval = 6
@@ -37,7 +35,6 @@ def test_constructor_accepts_float_as_repetition_interval():
     assert rate_limiter.repetition_interval == rep_interval
 
 
-# 3
 def test_constructor_accepts_float_castables_as_repetition_intervals():
     # Arrange
     rep_interval = 6
@@ -49,7 +46,6 @@ def test_constructor_accepts_float_castables_as_repetition_intervals():
     assert rate_limiter.repetition_interval == 6.0
 
 
-# 4
 def test_constructor_raises_when_provided_unparsable_type():
     # Arrange
     rep_interval = {}
@@ -59,13 +55,11 @@ def test_constructor_raises_when_provided_unparsable_type():
         RateLimiter(repetition_interval=rep_interval)
 
 
-# 5
 def test_marked_stopped_when_constructed(default_rate_limiter: RateLimiter):
     # Assert
     assert default_rate_limiter.stopped == True, "Somehow, it was started"
 
 
-# 6
 def test_marked_stopped_when_stopped_without_being_started(
     default_rate_limiter: RateLimiter,
 ):
@@ -76,7 +70,6 @@ def test_marked_stopped_when_stopped_without_being_started(
     assert default_rate_limiter.stopped == True, "Somehow, it was started"
 
 
-# 7
 def test_marked_not_stopped_when_started(default_rate_limiter: RateLimiter):
     # Act
     default_rate_limiter.start()
@@ -85,7 +78,6 @@ def test_marked_not_stopped_when_started(default_rate_limiter: RateLimiter):
     assert default_rate_limiter.stopped == False, "Somehow, it was stopped"
 
 
-# 8
 def test_marked_stopped_when_stopped_after_started(default_rate_limiter: RateLimiter):
     # Act
     default_rate_limiter.start()
@@ -95,8 +87,7 @@ def test_marked_stopped_when_stopped_after_started(default_rate_limiter: RateLim
     assert default_rate_limiter.stopped == True, "Somehow, it was not stopped"
 
 
-# 9
-def test_function_executed_after_submit(default_rate_limiter: RateLimiter):
+def test_function_executed_after_submit_when_started(default_rate_limiter: RateLimiter):
     # Arrange
     default_rate_limiter.start()
     mock_function = Mock(return_value="Test Test")
@@ -109,8 +100,7 @@ def test_function_executed_after_submit(default_rate_limiter: RateLimiter):
     mock_function.assert_called_once()
 
 
-# 10
-async def test_function_executed_after_submit_in_async_context(
+async def test_function_executed_after_submit_in_async_context_when_started(
     default_async_rate_limiter: RateLimiter,
 ):
     # Arrange
@@ -122,9 +112,22 @@ async def test_function_executed_after_submit_in_async_context(
 
     # Assert
     mock_function.assert_called_once()
-
-
-# 11
+    
+    
+def test_function_not_executed_when_stopped(default_rate_limiter: RateLimiter):
+    # Arrange
+    mock_function = Mock(return_value=6)
+    default_rate_limiter.start()
+    default_rate_limiter.stop()
+    
+    # Act
+    default_rate_limiter.submit(mock_function)
+    time.sleep(2)
+    
+    # Assert
+    mock_function.assert_not_called()
+    
+    
 async def test_functions_executed_at_correct_intervals(
     default_async_rate_limiter: RateLimiter,
 ):
@@ -150,7 +153,6 @@ async def test_functions_executed_at_correct_intervals(
     )
 
 
-# 12
 async def test_functions_executed_at_correct_intervals_after_interval_changed(
     default_async_rate_limiter: RateLimiter,
 ):
@@ -160,7 +162,19 @@ async def test_functions_executed_at_correct_intervals_after_interval_changed(
     await test_functions_executed_at_correct_intervals(default_async_rate_limiter)
     
 
-# 13
+def test_function_executed_with_arguments(default_rate_limiter: RateLimiter):
+    # Arrange
+    mock_function = Mock(return_value=6)
+    default_rate_limiter.start()
+    
+    # Act
+    default_rate_limiter.submit(mock_function, False, 1, kwarg=2)
+    time.sleep(2)
+    
+    # Assert
+    mock_function.assert_called_once_with(1, kwarg=2)
+    
+
 def test_exception_in_submitted_function_handled(default_rate_limiter: RateLimiter):
     # Arrange
     def raise_exception():
@@ -176,30 +190,31 @@ def test_exception_in_submitted_function_handled(default_rate_limiter: RateLimit
     # Assert
     mock_raises.assert_called_once()
     
-    
-# 14
-async def test_submit_executes_async_functions(default_async_rate_limiter: RateLimiter):
-    # Arrange
-    async_mock = AsyncMock(return_value=6)
-    default_async_rate_limiter.start()
-    
-    # Act
-    await default_async_rate_limiter.submit(async_mock, True)
-    
-    # Assert
-    async_mock.assert_awaited_once()
-    
 
-# 15
 def test_context_managed_instance_starts(default_rate_limiter: RateLimiter):
     # Arrange
     mock_function = Mock(return_value=6)
     
     # Act
     with default_rate_limiter as rl:
+        print("test")
         rl.submit(mock_function)
-
-    time.sleep(2) # No overshoots
+        time.sleep(2) # No overshoots
     
     # Assert
     mock_function.assert_called_once()
+    
+
+
+async def test_submit_executes_async_functions(default_async_rate_limiter: RateLimiter):
+    # Arrange
+    async_mock = AsyncMock(return_value=6)
+    default_async_rate_limiter.start()
+    
+    # Act
+    result = await default_async_rate_limiter.submit(async_mock, True)
+    
+    # Assert
+    async_mock.assert_awaited_once()
+    assert result == 6
+    
