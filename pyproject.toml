@@ -24,6 +24,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License"
 ]
 
+[project.urls]
+Repository = "https://github.com/placTc/unq"
+
 [project.optional-dependencies]
 test = ["pytest"]
 lint = ["black", "pylint", "isort"]
