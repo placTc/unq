@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "unq"
 description = "Simple rate limiter library using thread-safe queues."
 readme = "README.md"
-version = "1.0.0"
+version = "1.0.1"
 requires-python = ">=3.11"
 authors = [
     {name = "Egor Matuk", email = "gregory.matuk2004@gmail.com"}
