@@ -41,3 +41,6 @@ max-line-length = 120
 
 [tool.black]
 line-length = 120
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/foo"]
