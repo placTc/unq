@@ -1,9 +1,8 @@
-from asyncio import Future
 from typing import Any, Callable, Literal, Protocol, overload
 
 class _AbstractSubmittable(Protocol):
     @overload
-    def submit(self, function: Callable, keep_result: Literal[True], *args: Any, **kwargs: Any) -> Future[Any]: ...
+    def submit(self, function: Callable, keep_result: Literal[True], *args: Any, **kwargs: Any) -> Any: ...
     @overload
     def submit(self, function: Callable, keep_result: Literal[False] = False, *args: Any, **kwargs: Any) -> None:
         """Submit a function to execute later.

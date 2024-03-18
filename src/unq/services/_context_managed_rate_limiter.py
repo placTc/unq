@@ -11,9 +11,5 @@ class _ContextManagedRateLimiter(_AbstractSubmittable):
     def submit(self, function: Callable, keep_result: Literal[True], *args: Any, **kwargs: Any) -> Future[Any]: ...
     @overload
     def submit(self, function: Callable, keep_result: Literal[False] = False, *args: Any, **kwargs: Any) -> None: ...
-    def submit(self, function: Callable, keep_result: bool = False, *args: Any, **kwargs: Any) -> Future[Any] | None:
-        if keep_result:
-            return self._rate_limiter.submit(function, True, *args, **kwargs)
-        else:
-            return self._rate_limiter.submit(function, False, *args, **kwargs)
-            
+    def submit(self, function: Callable, keep_result: Literal[False] | Literal[True] = False, *args: Any, **kwargs: Any) -> Future[Any] | None:
+        return self._rate_limiter.submit(function, keep_result, *args, **kwargs)            

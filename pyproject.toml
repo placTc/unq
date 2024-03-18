@@ -31,6 +31,7 @@ dev = ["mypy", "pytest", "black", "pylint", "isort"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+pythonpath = ["src"]
 
 [tool.pylint]
 disable = ["missing-module-docstring"]

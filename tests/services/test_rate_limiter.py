@@ -1,3 +1,4 @@
+from concurrent.futures import Future
 import time
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock
@@ -7,7 +8,7 @@ import pytest
 from unq import RateLimiter
 from unq.models.repetition_interval import RepetitionInterval
 
-from .fixtures import default_async_rate_limiter, default_rate_limiter
+from .fixtures import default_rate_limiter, default_rate_limiter
 
 
 def test_constructor_parses_repetition_interval():
@@ -100,15 +101,15 @@ def test_function_executed_after_submit_when_started(default_rate_limiter: RateL
     mock_function.assert_called_once()
 
 
-async def test_function_executed_after_submit_in_async_context_when_started(
-    default_async_rate_limiter: RateLimiter,
+def test_function_executed_after_submit_in_async_context_when_started(
+    default_rate_limiter: RateLimiter,
 ):
     # Arrange
-    default_async_rate_limiter.start()
+    default_rate_limiter.start()
     mock_function = Mock(return_value="Test Test")
 
     # Act
-    await default_async_rate_limiter.submit(mock_function, True)
+    default_rate_limiter.submit(mock_function, True).result()
 
     # Assert
     mock_function.assert_called_once()
@@ -128,20 +129,20 @@ def test_function_not_executed_when_stopped(default_rate_limiter: RateLimiter):
     mock_function.assert_not_called()
     
     
-async def test_functions_executed_at_correct_intervals(
-    default_async_rate_limiter: RateLimiter,
+def test_functions_executed_at_correct_intervals(
+    default_rate_limiter: RateLimiter,
 ):
     # Arrange
     MAX_DELAY_INACCURACY_MICROSECONDS = 2000
-    default_async_rate_limiter.start()
+    default_rate_limiter.start()
 
     # Act
-    time_1: datetime = await default_async_rate_limiter.submit(datetime.now, True)
-    time_2: datetime = await default_async_rate_limiter.submit(datetime.now, True)
-    time_3: datetime = await default_async_rate_limiter.submit(datetime.now, True)
+    time_1: Future[datetime] = default_rate_limiter.submit(datetime.now, True)
+    time_2: Future[datetime] = default_rate_limiter.submit(datetime.now, True)
+    time_3: Future[datetime] = default_rate_limiter.submit(datetime.now, True)
 
-    delay_1 = time_2 - time_1
-    delay_2 = time_3 - time_2
+    delay_1 = time_2.result() - time_1.result()
+    delay_2 = time_3.result() - time_2.result()
 
     delay_delta_1 = delay_1 - delay_2
     delay_delta_2 = delay_2 - delay_1
@@ -153,13 +154,13 @@ async def test_functions_executed_at_correct_intervals(
     )
 
 
-async def test_functions_executed_at_correct_intervals_after_interval_changed(
-    default_async_rate_limiter: RateLimiter,
+def test_functions_executed_at_correct_intervals_after_interval_changed(
+    default_rate_limiter: RateLimiter,
 ):
     # Act, Assert
-    await test_functions_executed_at_correct_intervals(default_async_rate_limiter)
-    default_async_rate_limiter.repetition_interval = 1
-    await test_functions_executed_at_correct_intervals(default_async_rate_limiter)
+    test_functions_executed_at_correct_intervals(default_rate_limiter)
+    default_rate_limiter.repetition_interval = 1
+    test_functions_executed_at_correct_intervals(default_rate_limiter)
     
 
 def test_function_executed_with_arguments(default_rate_limiter: RateLimiter):
@@ -205,16 +206,18 @@ def test_context_managed_instance_starts(default_rate_limiter: RateLimiter):
     mock_function.assert_called_once()
     
 
-
-async def test_submit_executes_async_functions(default_async_rate_limiter: RateLimiter):
+def test_limit_decorator_works(default_rate_limiter: RateLimiter):
     # Arrange
-    async_mock = AsyncMock(return_value=6)
-    default_async_rate_limiter.start()
+    @default_rate_limiter.limit(True)
+    def mock_function():
+        return 6
+    
+    default_rate_limiter.start()
     
     # Act
-    result = await default_async_rate_limiter.submit(async_mock, True)
+    result = mock_function()
     
     # Assert
-    async_mock.assert_awaited_once()
-    assert result == 6
+    assert result.result() == 6
+
     
